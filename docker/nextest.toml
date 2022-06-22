@@ -1,2 +1,2 @@
-[profile.default-miri]
+[profile.default]
 slow-timeout = { period = "60s", terminate-after = 1 }

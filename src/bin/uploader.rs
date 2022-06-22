@@ -21,7 +21,7 @@ async fn main() -> Result<(), Report> {
 
     let mut res = client
         .list_objects_v2()
-        .bucket("miri-runs")
+        .bucket("asan-runs")
         .into_paginator()
         .send();
 
@@ -31,7 +31,7 @@ async fn main() -> Result<(), Report> {
             tasks.spawn(async move {
                 client
                     .put_object()
-                    .bucket("miri-runs")
+                    .bucket("asan-runs")
                     .key(path)
                     .body(ByteStream::from_path(path).await?)
                     .content_type("text/html")
@@ -82,7 +82,7 @@ async fn main() -> Result<(), Report> {
                 tasks.spawn(async move {
                     client
                         .put_object()
-                        .bucket("miri-runs")
+                        .bucket("asan-runs")
                         .key(&path)
                         .body(ByteStream::from_path(&path).await?)
                         .content_type("text/html")

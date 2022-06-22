@@ -136,6 +136,9 @@ fn main() -> Result<()> {
     let crates = crates
         .into_par_iter()
         .filter(|krate| {
+            if krate.name.starts_with("swc") || krate.name.starts_with("solana") {
+                return false;
+            }
             // Keep all crates if rerun-when=always
             if let RerunWhen::Always = args.rerun_when {
                 return true;
@@ -215,14 +218,14 @@ fn main() -> Result<()> {
             .template("[{elapsed_precise}/{duration_precise}] {wide_bar} {pos}/{len}")?,
     );
 
-    let miri_flags = "MIRIFLAGS=-Zmiri-disable-isolation -Zmiri-ignore-leaks \
-                     -Zmiri-panic-on-unsupported -Zmiri-retag-fields";
-
     // Reverse the sort order, most-downloaded last
     let crates = crates.into_iter().rev().collect::<Vec<_>>();
     let crates = Arc::new(Mutex::new(crates));
 
     let test_end_delimiter = uuid::Uuid::new_v4().to_string();
+
+    let rustflags = "-Copt-level=0 -Cdebuginfo=1 -Cdebug-assertions=on -Zsanitizer=address \
+        -Zextra-const-ub-checks -Zstrict-init-checks";
 
     let mut threads = Vec::new();
     for _ in 0..args.jobs.unwrap_or_else(|| num_cpus::get() / 2) {
@@ -239,18 +242,18 @@ fn main() -> Result<()> {
                 // Create tmpfs mounts for all the locations we expect to be doing work in, so that
                 // we minimize actual disk I/O
                 "--tmpfs=/root/build:exec",
-                "--tmpfs=/root/.cache",
+                "--tmpfs=/root/.cache:exec",
                 "--tmpfs=/tmp:exec",
                 "--env",
-                "RUSTFLAGS=-Zrandomize-layout --cap-lints allow -Copt-level=0 -Cdebuginfo=0",
+                &format!("RUSTFLAGS={}", rustflags),
                 "--env",
-                "RUSTDOCFLAGS=--color=always",
+                &format!("RUSTDOCFLAGS={}", rustflags),
+                "--env",
+                "ASAN_OPTIONS=detect_leaks=0 detect_stack_use_after_return=1 allocator_may_return_null=1",
                 "--env",
                 "CARGO_INCREMENTAL=0",
                 "--env",
-                "RUST_BACKTRACE=0",
-                "--env",
-                miri_flags,
+                "RUST_BACKTRACE=1",
                 "--env",
                 "TEST_TIMEOUT=900",
                 "--env",
@@ -259,7 +262,7 @@ fn main() -> Result<()> {
                 &format!("--memory={}g", args.memory_limit_gb),
                 // Setting --memory-swap to the same value turns off swap
                 &format!("--memory-swap={}g", args.memory_limit_gb),
-                "miri:latest",
+                "runner:latest",
             ])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

@@ -32,8 +32,8 @@ fn render(crates: &HashMap<String, Vec<Crate>>) -> Result<()> {
     })?;
 
     let mut crates = crates
-        .values()
-        .map(|c| c.iter().max_by(|a, b| a.version.cmp(&b.version)).unwrap())
+        .iter()
+        .map(|(n, c)| c.iter().max_by(|a, b| a.version.cmp(&b.version)).expect(&n))
         .cloned()
         .collect::<Vec<_>>();
     crates.sort_by(|a, b| b.recent_downloads.cmp(&a.recent_downloads));
@@ -75,13 +75,20 @@ function scroll_to_ub() {{
 }
 
 fn write_crate_output(krate: &Crate, output: &str) -> Result<()> {
-    let encoded = ansi_to_html::convert_escaped(&output);
+    let mut encoded = ansi_to_html::convert_escaped(&output);
 
-    let encoded = encoded.replacen(
+    for pat in [
         "Undefined Behavior:",
-        "<span id=\"ub\"></span>Undefined Behavior:",
-        1,
-    );
+        "ERROR: AddressSanitizer:",
+        "unsafe precondition violated",
+        "attempted to leave type",
+    ] {
+        if encoded.contains(pat) {
+            let replacement = format!("<span id=\"ub\"></span>{}", pat);
+            encoded = encoded.replacen(pat, &replacement, 1);
+            break;
+        }
+    }
 
     fs::create_dir_all(format!("logs/{}", krate.name))?;
 
@@ -220,7 +227,7 @@ pre {
     -moz-text-size-adjust: 100%;
     -ms-text-size-adjust: 100%;
 }
-</style><title>Miri build logs</title></head><body><pre>
+</style><title>ASan build logs</title></head><body><pre>
 Click on a crate to the right to display its build log
 </pre></body></html>
 </object>
